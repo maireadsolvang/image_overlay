@@ -5,13 +5,13 @@ from itertools import combinations, permutations
 from matplotlib import pyplot as plt
 
 
-maps=['01-36.pgm','06-48_97min.pgm','18-27.pgm','18-45.pgm','29-26.pgm','34-27.pgm','48-23big_boi.pgm','49-54.pgm']
-# maps = ['01-36.ppm','06-48_97min.ppm','18-27.ppm','18-45.ppm','29-26.ppm','34-27.ppm','48-23big_boi.ppm','49-54.ppm']
-compare = combinations(maps,2)
+bw_maps=['01-36.pgm','06-48.pgm','18-27.pgm','18-45.pgm','29-26.pgm','34-27.pgm','48-23.pgm','49-54.pgm']
+rgb_maps = ['01-36.ppm','06-48.ppm','18-27.ppm','18-45.ppm','29-26.ppm','34-27.ppm','48-23.ppm','49-54.ppm']
+compare = combinations(bw_maps,2)
 
 overlay_num = 0
-path = 'zold/'
-output_path = 'compare_meh/'
+path = '' #rgb/ or bw/
+output_path = ''
 
 try: 
     os.mkdir(output_path)
