@@ -3,16 +3,24 @@ import cv2 as cv
 import os
 from itertools import combinations, permutations
 from matplotlib import pyplot as plt
+from math import log, ceil, atan, asin, sqrt, cos, sin
+from RANSAC import RANSAC
+
+bw_maps=['01-36.pgm','06-48.pgm','18-27.pgm','18-45.pgm','29-26.pgm','48-23.pgm','49-54.pgm']
+rgb_maps = ['01-36.ppm','06-48.ppm','18-27.ppm','18-45.ppm','29-26.ppm','48-23.ppm','49-54.ppm']
+compare = list(combinations(rgb_maps,2))
 
 
-bw_maps=['01-36.pgm','06-48.pgm','18-27.pgm','18-45.pgm','29-26.pgm','34-27.pgm','48-23.pgm','49-54.pgm']
-rgb_maps = ['01-36.ppm','06-48.ppm','18-27.ppm','18-45.ppm','29-26.ppm','34-27.ppm','48-23.ppm','49-54.ppm']
-compare = combinations(bw_maps,2)
-
+correct = 0
 overlay_num = 0
-path = '' #rgb/ or bw/
+path = 'rgb' #rgb/ or bw/
 output_path = ''
 
+
+if path != '' and path[-1] != '/':
+    path += '/'
+if output_path != '' and output_path[-1] != '/':
+    output_path += '/'
 try: 
     os.mkdir(output_path)
 except:
@@ -42,18 +50,20 @@ for pair in compare:
 
     # Sort matches and only use matches with fixed distance threshold
     matches = sorted(matches, key=lambda x:x.distance)
-    matches = filter(lambda x:x.distance < 30, matches)
+    # matches = filter(lambda x:x.distance < 30, matches)
 
 
-    points1 = []
-    points2 = []
-    for match in matches:
-        points1.append(kp1[match.queryIdx].pt)
-        points2.append(kp2[match.trainIdx].pt)
-    points1 = np.array(points1)
-    points2 = np.array(points2) 
+    points1 = np.zeros((len(matches),2))
+    points2 = np.zeros((len(matches),2))
+    for i,match in enumerate(matches):
+        points1[i] = kp1[match.queryIdx].pt
+        points2[i] = kp2[match.trainIdx].pt
+
+    #filter out outliers
+    points1,points2 = RANSAC(points1,points2,d=100)
 
     so = str(overlay_num)
+
     while True:
         try:
             transform = cv.estimateRigidTransform(points1,points2, False)
@@ -62,17 +72,23 @@ for pair in compare:
             #Save first 10 feature matches 
             img3 = cv.drawMatches(map1,kp1,map2,kp2,matches[:10],None, flags=2)
             plt.imshow(img3),plt.title('No Working Transform '+pair[0]+'+'+pair[1]),plt.savefig(output_path+so+'no_transform')
-            transform = False
+            transform = None
             break
         if transform is not None:
-            #Valid transform found 
-            break
+            ft = transform.flatten()
+            a,b,tx,c,d,ty = ft 
+            sx = np.sign(a)*pow(a**2+b**2,0.5)
+            sy = np.sign(d)*pow(c**2+d**2,0.5)
+            #if the scale is ~1 then the transform is likely to be correct
+            if 0.9 < sx < 1.1 and 0.9 < sy < 1.1:
+                break
 
         #Since points are sorted by distance, keep decreasing max distance to get transform
         points1 = points1[:-1]
         points2 = points2[:-1]
     
-    if transform is not False:
+    if transform is not None:
+        correct+=1
         rows1, cols1 = map1.shape
         rows2, cols2 = map2.shape
 
@@ -87,8 +103,8 @@ for pair in compare:
             map1 = np.pad(map1, ((0,0),(0,cols2-cols1)), 'constant', constant_values=255)
 
         rows,cols = map1.shape
-        
-        #Apply transform 
+
+        #Apply transform
         map1_transform = cv.warpAffine(map1,transform,(cols,rows),borderValue=255)
         #Overlay the Images with 50% transparency each
         overlay = cv.addWeighted(map1_transform, 0.5,map2, 0.5, 0)
@@ -106,7 +122,7 @@ for pair in compare:
         # plt.imshow(overlay, cmap='gray'),
         # plt.savefig('overlay_'+sfn+'/'+sfn+'overlay')
 
-        # Display 4 graphs at once
+        # Save 4 graphs at once
         plt.subplot(221),plt.imshow(map1, cmap='gray'),plt.title('map1 '+pair[0])
         plt.subplot(222),plt.imshow(map2, cmap='gray'),plt.title('map2 '+pair[1])
         plt.subplot(223),plt.imshow(map1_transform, cmap='gray'),plt.title('map1 transform')
@@ -115,3 +131,4 @@ for pair in compare:
         plt.close()
 
     overlay_num += 1
+print(correct)
