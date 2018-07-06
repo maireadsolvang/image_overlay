@@ -26,6 +26,7 @@ correct = 0
 wrong = 0
 overlay_num = 0
 path = 'rgb' #rgb/ or bw/
+output_path = 'overlays'
 
 
 if path != '' and path[-1] != '/':
