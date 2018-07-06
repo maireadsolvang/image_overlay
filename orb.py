@@ -7,14 +7,25 @@ from math import log, ceil, atan, asin, sqrt, cos, sin
 from RANSAC import RANSAC
 
 bw_maps=['01-36.pgm','06-48.pgm','18-27.pgm','18-45.pgm','29-26.pgm','48-23.pgm','49-54.pgm']
-rgb_maps = ['01-36.ppm','06-48.ppm','18-27.ppm','18-45.ppm','29-26.ppm','48-23.ppm','49-54.ppm']
+
+#contains only the one or two smaller rooms
+rgb_only_room = ['01-36.ppm','04-17.ppm','18-27.ppm','18-45.ppm','22-35.ppm','29-26.ppm','49-54.ppm','56-58.ppm']
+#contains the room(s) and area to the right
+rgb_right = ['06-48.ppm','38-27.ppm','48-23.ppm']
+#contains the room(s) and area to the left
+rgb_left = ['57-25.ppm','38-59.ppm']
+#Maps generated that do not contain the room(s)
+rgb_no_room = ['false1.ppm','false2.ppm','false3.ppm','false4.ppm']
+#Random rgb pictures 
+rgb_rand = ['dog.jpg','star_trek.jpg']
+
+rgb_maps = rgb_only_room + rgb_right + rgb_left
 compare = list(combinations(rgb_maps,2))
 
-
 correct = 0
+wrong = 0
 overlay_num = 0
 path = 'rgb' #rgb/ or bw/
-output_path = ''
 
 
 if path != '' and path[-1] != '/':
@@ -30,6 +41,13 @@ except:
 for pair in compare:
     map1 = cv.imread(path+pair[0] ,0)
     map2 = cv.imread(path+pair[1] ,0)
+
+
+    rows1,cols1 = map1.shape
+    rows2,cols2 = map2.shape
+    map2 = np.pad(map2, 200, 'constant', constant_values=255)
+    map1 = np.pad(map1, 200, 'constant', constant_values=255)
+
 
     #Apply a 9x9 Gaussian filter
     map1 = cv.GaussianBlur(map1,(9,9),0)
@@ -60,20 +78,14 @@ for pair in compare:
         points2[i] = kp2[match.trainIdx].pt
 
     #filter out outliers
-    points1,points2 = RANSAC(points1,points2,d=100)
+    points1,points2 = RANSAC(points1,points2,d=25)
 
     so = str(overlay_num)
 
-    while True:
-        try:
-            transform = cv.estimateRigidTransform(points1,points2, False)
-        except:
-            #No distance threshold can generate a valid transform
-            #Save first 10 feature matches 
-            img3 = cv.drawMatches(map1,kp1,map2,kp2,matches[:10],None, flags=2)
-            plt.imshow(img3),plt.title('No Working Transform '+pair[0]+'+'+pair[1]),plt.savefig(output_path+so+'no_transform')
-            transform = None
-            break
+    transform = None
+    
+    while len(points1) > 20:
+        transform = cv.estimateRigidTransform(points1,points2, False)
         if transform is not None:
             ft = transform.flatten()
             a,b,tx,c,d,ty = ft 
@@ -82,11 +94,13 @@ for pair in compare:
             #if the scale is ~1 then the transform is likely to be correct
             if 0.9 < sx < 1.1 and 0.9 < sy < 1.1:
                 break
+            else:
+                transform = None
 
         #Since points are sorted by distance, keep decreasing max distance to get transform
         points1 = points1[:-1]
         points2 = points2[:-1]
-    
+
     if transform is not None:
         correct+=1
         rows1, cols1 = map1.shape
@@ -129,6 +143,9 @@ for pair in compare:
         plt.subplot(224),plt.imshow(overlay, cmap='gray'),plt.title('overlaid image')
         plt.savefig(output_path+so+'overlay')
         plt.close()
+    else:
+        img3 = cv.drawMatches(map1,kp1,map2,kp2,matches[:10],None, flags=2)
+        plt.imshow(img3),plt.title('No Working Transform '+pair[0]+'+'+pair[1]),plt.savefig(output_path+so+'no_transform')
 
     overlay_num += 1
 print(correct)
